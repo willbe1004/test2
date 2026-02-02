@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>한국수안 입찰관리 (Readable UI)</title>
+  <style>
+    :root{
+      --bg:#050b16; --card:#0e1b2a; --line:#1e3350;
+      --txt:#eaf2ff; --mut:#9bb0cc;
+      --accent:#ffb83f; --good:#00c896; --bad:#ff5b6a;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans KR","Apple SD Gothic Neo",sans-serif;
+      font-size:18px; line-height:1.55;}
+    a{color:var(--accent);text-decoration:none}
+    header{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;justify-content:space-between}
+    .btn{background:#162a44;color:var(--txt);border:1px solid var(--line);padding:10px 14px;border-radius:12px;cursor:pointer}
+    .btn.primary{background:rgba(255,184,63,.15);border-color:rgba(255,184,63,.35)}
+    .btn.good{background:rgba(0,200,150,.15);border-color:rgba(0,200,150,.35)}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .wrap{display:grid;grid-template-columns:420px 1fr;gap:12px;padding:12px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+    .card h2{margin:0;padding:12px 14px;font-size:18px;border-bottom:1px solid var(--line)}
+    .p{padding:12px 14px}
+    input,select,textarea{width:100%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:#0b1626;color:var(--txt);font-size:1rem}
+    textarea{min-height:90px;resize:vertical}
+    .list{max-height:calc(100vh - 220px);overflow:auto}
+    .item{padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+    .item:hover{background:#0b1626}
+    .item .t{font-weight:700}
+    .item .m{color:var(--mut);font-size:.95rem;margin-top:4px}
+    .badge{display:inline-block;padding:2px 10px;border-radius:999px;border:1px solid var(--line);font-size:.9rem;margin-left:6px}
+    .badge.h{border-color:rgba(255,91,106,.5);color:#ffd0d6}
+    .badge.m{border-color:rgba(255,184,63,.45);color:#ffe7b8}
+    .badge.l{border-color:rgba(0,200,150,.45);color:#bff6e7}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .kv{display:grid;grid-template-columns:120px 1fr;gap:10px;margin:6px 0}
+    .k{color:var(--mut)}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.95rem;white-space:pre-wrap}
+    .hr{height:1px;background:var(--line);margin:12px 0}
+    @media (max-width:1100px){ .wrap{grid-template-columns:1fr} .list{max-height:none} }
+  </style>
+</head>
+<body>
+<header>
+  <div style="display:flex;gap:10px;align-items:center">
+    <strong>한국수안 입찰관리</strong>
+    <span style="color:var(--mut);font-size:.95rem">Readable UI</span>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button class="btn" id="btnRefresh">목록 새로고침</button>
+    <button class="btn" id="btnUpdateAll">updateAll</button>
+    <button class="btn" id="btnExternal">external_update</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="card">
+    <h2>공고 목록</h2>
+    <div class="p">
+      <input id="q" placeholder="검색(제목/지역/발주처)"/>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <select id="rel">
+          <option value="">관련성 전체</option>
+          <option value="상">상</option>
+          <option value="중">중</option>
+          <option value="하">하</option>
+        </select>
+        <input id="region" placeholder="지역 키워드(예: 양양군)"/>
+      </div>
+    </div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <section class="card">
+    <h2>상세 / 2차 심화 / 표준입력 / 문서생성</h2>
+    <div class="p" id="empty">왼쪽에서 공고를 선택하세요.</div>
+
+    <div class="p" id="detail" style="display:none">
+      <div class="kv"><div class="k">공고번호</div><div id="dNo"></div></div>
+      <div class="kv"><div class="k">제목</div><div id="dTitle"></div></div>
+      <div class="kv"><div class="k">지역</div><div id="dRegion"></div></div>
+      <div class="kv"><div class="k">발주처</div><div id="dClient"></div></div>
+      <div class="kv"><div class="k">링크</div><div><a id="dLink" target="_blank">열기</a></div></div>
+
+      <div class="hr"></div>
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn primary" id="btnDeep">2차 심화분석</button>
+        <button class="btn" id="btnDeepRefresh">2차 심화(강제 새로)</button>
+        <button class="btn good" id="btnDoc">Gemini로 대책문서 생성</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="kv"><div class="k">2차요약</div><div id="dSummary2"></div></div>
+      <div class="kv"><div class="k">조례(근거)</div><div id="dOrdin"></div></div>
+      <div class="kv"><div class="k">조문</div><div class="mono" id="dJo"></div></div>
+
+      <div class="hr"></div>
+
+      <h3 style="margin:0 0 10px 0">표준입력(사용자 변경값 저장)</h3>
+      <div class="grid">
+        <div><label>지역</label><input id="fRegion"/></div>
+        <div><label>발주처</label><input id="fClient"/></div>
+
+        <div><label>사업명(표준)</label><input id="fProject"/></div>
+        <div><label>의사결정일</label><input id="fDecision"/></div>
+
+        <div><label>영업현황</label><input id="fSales"/></div>
+        <div><label>설계사</label><input id="fDesigner"/></div>
+
+        <div><label>발주처 담당</label><input id="fContact"/></div>
+        <div><label>낙찰일</label><input id="fAward"/></div>
+
+        <div><label>용역기간</label><input id="fPeriod"/></div>
+        <div><label>준공일</label><input id="fEnd"/></div>
+
+        <div><label>용역금액(억원)</label><input id="fAmt"/></div>
+        <div><label>총사업비(억원)</label><input id="fBud"/></div>
+
+        <div><label>대지면적(㎡)</label><input id="fArea"/></div>
+        <div><label>용량(톤)</label><input id="fTon"/></div>
+      </div>
+
+      <div style="margin-top:10px">
+        <label>메모</label>
+        <textarea id="fMemo"></textarea>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="btn good" id="btnSave">표준입력 저장</button>
+        <button class="btn" id="btnReset">저장값 재적용</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <h3 style="margin:0 0 10px 0">첨부 링크</h3>
+      <div id="att"></div>
+
+      <div class="hr"></div>
+
+      <h3 style="margin:0 0 10px 0">대책문서</h3>
+      <div id="docBox" class="mono"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // ✅ 본인 WebApp URL로 변경
+  const API_BASE = 'YOUR_WEBAPP_URL_HERE';
+
+  async function apiGet(params){
+    const url = new URL(API_BASE);
+    Object.entries(params||{}).forEach(([k,v])=> url.searchParams.set(k,v));
+    const r = await fetch(url.toString(), { method:'GET' });
+    return r.json();
+  }
+  async function apiPostJson(payload){
+    const r = await fetch(API_BASE, {
+      method:'POST',
+      headers:{'Content-Type':'application/json; charset=utf-8'},
+      body: JSON.stringify(payload||{})
+    });
+    return r.json();
+  }
+
+  let items = [];
+  let current = null;
+
+  function gradeBadge(g){
+    if(!g) return '';
+    if(g==='상') return '<span class="badge l">상</span>';
+    if(g==='중') return '<span class="badge m">중</span>';
+    return '<span class="badge h">하</span>';
+  }
+
+  function render(){
+    const q = (document.getElementById('q').value||'').trim().toLowerCase();
+    const rel = document.getElementById('rel').value;
+    const rkw = (document.getElementById('region').value||'').trim();
+
+    const filtered = items.filter(it=>{
+      const blob = (it.title+' '+it.region+' '+it.client).toLowerCase();
+      if(q && blob.indexOf(q)===-1) return false;
+      if(rel && String(it.relevanceGrade||'')!==rel) return false;
+      if(rkw && String(it.region||'').indexOf(rkw)===-1) return false;
+      return true;
+    });
+
+    const el = document.getElementById('list');
+    el.innerHTML = filtered.map(it=>`
+      <div class="item" data-no="${it.no}">
+        <div class="t">${it.title || '(제목없음)'} ${gradeBadge(it.relevanceGrade)}</div>
+        <div class="m">${it.region||'-'} · ${it.client||'-'}</div>
+        <div class="m">마감: ${it.deadline||'-'} / 금액: ${it.serviceAmount||'-'}</div>
+      </div>
+    `).join('');
+
+    [...el.querySelectorAll('.item')].forEach(n=>{
+      n.onclick=()=>select(n.dataset.no);
+    });
+  }
+
+  async function refresh(){
+    const data = await apiGet({});
+    items = data.items || [];
+    render();
+  }
+
+  function fillForm(it){
+    document.getElementById('fRegion').value = it.region || '';
+    document.getElementById('fClient').value = it.client || '';
+    document.getElementById('fProject').value = it.projectName || '';
+    document.getElementById('fDecision').value = it.methodDecisionDate || '';
+    document.getElementById('fSales').value = it.salesStatus || '';
+    document.getElementById('fDesigner').value = it.designer || '';
+    document.getElementById('fContact').value = (it.clientContact || it.clientManager || '');
+    document.getElementById('fAward').value = it.awardDate || '';
+    document.getElementById('fPeriod').value = it.servicePeriod || '';
+    document.getElementById('fEnd').value = it.endDate || '';
+    document.getElementById('fAmt').value = it.serviceAmountEok || '';
+    document.getElementById('fBud').value = it.projectBudgetEok || '';
+    document.getElementById('fArea').value = it.siteArea || '';
+    document.getElementById('fTon').value = (it.capacityTon || it.expectedTon || '');
+    document.getElementById('fMemo').value = it.memo || '';
+  }
+
+  async function select(no){
+    current = items.find(x=>String(x.no)===String(no));
+    if(!current) return;
+
+    document.getElementById('empty').style.display='none';
+    document.getElementById('detail').style.display='block';
+
+    document.getElementById('dNo').textContent = current.no;
+    document.getElementById('dTitle').textContent = current.title || '';
+    document.getElementById('dRegion').textContent = current.region || '';
+    document.getElementById('dClient').textContent = current.client || '';
+    document.getElementById('dLink').href = current.link || '#';
+
+    document.getElementById('dSummary2').textContent = '';
+    document.getElementById('dOrdin').textContent = '';
+    document.getElementById('dJo').textContent = '';
+    document.getElementById('att').innerHTML = '';
+    document.getElementById('docBox').textContent = current.mitigationDocUrl ? ('문서: ' + current.mitigationDocUrl) : '없음';
+
+    fillForm(current);
+  }
+
+  async function deep(refreshFlag){
+    if(!current) return;
+    const data = await apiGet({
+      action:'deepAnalyze',
+      no: current.no,
+      rowIndex: current.rowIndex,
+      link: current.link || '',
+      refresh: refreshFlag ? '1' : '0'
+    });
+    const deep = data.deep || {};
+    document.getElementById('dSummary2').textContent = deep.summary2 || '';
+    document.getElementById('dOrdin').textContent = deep.ordinanceBasis || '';
+    document.getElementById('dJo').textContent = deep.ordinanceArticlesText || '';
+
+    const atts = data.attachments || [];
+    document.getElementById('att').innerHTML = atts.length
+      ? atts.map(a=>`<div class="mono">- <a target="_blank" href="${a.url}">${a.name}</a></div>`).join('')
+      : '<div style="color:var(--mut)">첨부 링크 없음</div>';
+  }
+
+  async function saveStd(){
+    if(!current) return;
+    const fields = {
+      region: document.getElementById('fRegion').value.trim(),
+      client: document.getElementById('fClient').value.trim(),
+      projectName: document.getElementById('fProject').value.trim(),
+      methodDecisionDate: document.getElementById('fDecision').value.trim(),
+      salesStatus: document.getElementById('fSales').value.trim(),
+      designer: document.getElementById('fDesigner').value.trim(),
+      clientContact: document.getElementById('fContact').value.trim(),
+      awardDate: document.getElementById('fAward').value.trim(),
+      servicePeriod: document.getElementById('fPeriod').value.trim(),
+      endDate: document.getElementById('fEnd').value.trim(),
+      serviceAmountEok: document.getElementById('fAmt').value.trim(),
+      projectBudgetEok: document.getElementById('fBud').value.trim(),
+      siteArea: document.getElementById('fArea').value.trim(),
+      capacityTon: document.getElementById('fTon').value.trim(),
+      memo: document.getElementById('fMemo').value.trim()
+    };
+    const res = await apiPostJson({ action:'update_bid_fields', no: current.no, rowIndex: current.rowIndex, fields });
+    if(res && res.ok){
+      // 목록에서 재반영되도록 즉시 반영 후 리렌더
+      Object.assign(current, fields);
+      render();
+      alert('저장 완료');
+    }else{
+      alert('저장 실패: ' + (res.error || 'unknown'));
+    }
+  }
+
+  async function genDoc(){
+    if(!current) return;
+    const res = await apiGet({ action:'generate_mitigation_doc', no: current.no, rowIndex: current.rowIndex });
+    if(res && res.ok && res.docUrl){
+      current.mitigationDocUrl = res.docUrl;
+      document.getElementById('docBox').textContent = '문서: ' + res.docUrl;
+      window.open(res.docUrl, '_blank');
+    }else{
+      alert('문서 생성 실패: ' + (res.error || 'unknown'));
+    }
+  }
+
+  document.getElementById('btnRefresh').onclick = refresh;
+  document.getElementById('btnUpdateAll').onclick = ()=>apiGet({action:'updateAll'}).then(refresh);
+  document.getElementById('btnExternal').onclick = ()=>apiGet({action:'external_update'}).then(refresh);
+
+  document.getElementById('q').oninput = render;
+  document.getElementById('rel').onchange = render;
+  document.getElementById('region').oninput = render;
+
+  document.getElementById('btnDeep').onclick = ()=>deep(false);
+  document.getElementById('btnDeepRefresh').onclick = ()=>deep(true);
+  document.getElementById('btnSave').onclick = saveStd;
+  document.getElementById('btnReset').onclick = ()=>current && fillForm(current);
+  document.getElementById('btnDoc').onclick = genDoc;
+
+  refresh();
+</script>
+</body>
+</html>
